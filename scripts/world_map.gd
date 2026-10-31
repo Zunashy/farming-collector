@@ -31,7 +31,10 @@ const FENCE_LEFT := 9
 const FENCE_RIGHT := 184
 const FENCE_SIDE := 18 ## épaisseur des côtés
 const FENCE_DEPTH := 12 ## profondeur des traverses haut et bas, au-dessus de leur base
-const GATE_GAP := 24 ## largeur du passage laissé libre devant la porte
+## Passage libre de la porte, entre les bords intérieurs de ses poteaux (x dans l'enclos) :
+## la porte ouverte (fence_gate_open.png) est posée à x = 64, poteaux de 0 à 11 et à partir de 33.
+const GATE_LEFT := 75
+const GATE_RIGHT := 97
 
 
 ## Coin haut gauche des 4x4 cases du champ.
@@ -39,10 +42,10 @@ static func field_position(index: int) -> Vector2:
 	return Vector2((FIELD_BLOCK_COLS[index] + 1) * TILE, (BLOCK_ROW + 1) * TILE)
 
 
-## Point sur le chemin, juste devant la porte de l'enclos.
+## Point sur le chemin, juste devant la porte de l'enclos (dans l'axe du passage).
 static func gate_front(index: int) -> Vector2:
-	var col := FIELD_BLOCK_COLS[index] + GATE_OFFSET
-	return Vector2(col * TILE + TILE / 2.0, (BLOCK_ROW + BLOCK_SIZE + 1) * TILE + TILE / 2.0)
+	var x := FIELD_BLOCK_COLS[index] * TILE + (GATE_LEFT + GATE_RIGHT) / 2.0
+	return Vector2(x, (BLOCK_ROW + BLOCK_SIZE + 1) * TILE + TILE / 2.0)
 
 
 ## Point dans le champ, juste derrière la porte (rangée du bas).
@@ -208,8 +211,8 @@ static func _fence_body(origin: Vector2) -> StaticBody2D:
 	body.position = origin
 	var top := FENCE_BACK_BASE - FENCE_DEPTH
 	var bottom := FENCE_FRONT_BASE - FENCE_DEPTH
-	var gap_left := GATE_OFFSET * TILE + (TILE - GATE_GAP) / 2.0
-	var gap_right := gap_left + GATE_GAP
+	var gap_left := GATE_LEFT
+	var gap_right := GATE_RIGHT
 	var rects: Array[Rect2] = [
 		Rect2(FENCE_LEFT, top, FENCE_RIGHT - FENCE_LEFT, FENCE_DEPTH), # haut
 		Rect2(FENCE_LEFT, top, FENCE_SIDE, FENCE_FRONT_BASE - top), # gauche
