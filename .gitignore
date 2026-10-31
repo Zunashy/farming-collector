@@ -1,9 +1,3 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
-
-# Sources haute resolution des sprites (lourdes, non utilisees par le jeu)
-assets/sprites/sources/
-assets/sprites/export.ps1
-assets/sprites/export_map.ps1
-assets/sprites/export_tasks.ps1
