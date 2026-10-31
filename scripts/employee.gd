@@ -20,7 +20,9 @@ const TASK_ICONS: Array[Texture2D] = [
 const SPEED := 60.0
 const WORK_TIME := 0.7 ## secondes passées sur une case
 const ARRIVE_DIST := 3.0
-const HIT_RECT := Rect2(-12, -40, 24, 50) ## zone de clic droit (le sprite est agrandi, voir CharacterSprite)
+const HIT_RECT := Rect2(-12, -42, 24, 44) ## zone de clic droit : la silhouette (20 x 40 px au-dessus des pieds)
+const RING_RADIUS := Vector2(13, 5) ## anneau de sélection, posé au sol sous les pieds
+const NAME_Y := -46.0 ## ligne de base du prénom, juste au-dessus de la tête
 const BODY_RADIUS := 6.0 ## corps physique : le joueur ne traverse pas les employés
 const GIVE_WAY_DIST := 18.0 ## l'employé s'arrête plutôt que d'avancer à moins de cette distance du joueur
 const SHEET := preload("res://assets/pack_v2/employee.png")
@@ -218,7 +220,12 @@ func _drop_job() -> void:
 
 func _draw() -> void:
 	# Dessiné sous le sprite : anneau de sélection aux pieds, prénom au-dessus de la tête.
+	# Les pieds sont à l'origine (voir CharacterSprite).
 	if selected:
-		draw_arc(Vector2(0, 8), 14.0, 0.0, TAU, 24, Color.WHITE, 2.0)
+		var ring := PackedVector2Array()
+		for i in 25:
+			var angle := TAU * i / 24.0
+			ring.append(Vector2(cos(angle) * RING_RADIUS.x, sin(angle) * RING_RADIUS.y))
+		draw_polyline(ring, Color.WHITE, 1.5)
 	var font := ThemeDB.fallback_font
-	draw_string(font, Vector2(-30, -44), employee_name, HORIZONTAL_ALIGNMENT_CENTER, 60, 8, Color.WHITE)
+	draw_string(font, Vector2(-30, NAME_Y), employee_name, HORIZONTAL_ALIGNMENT_CENTER, 60, 8, Color.WHITE)

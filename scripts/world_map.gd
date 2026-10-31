@@ -16,11 +16,7 @@ const ROAD_ROW := 9
 const SELL_TILE := Vector2i(3, 6)
 
 const GRASS := preload("res://assets/pack_v2/tiles_grass.png")
-const FLOWERS_WHITE := preload("res://assets/sprites/flowers_white.png")
-const FLOWERS_MIXED := preload("res://assets/sprites/flowers_mixed.png")
-const DIRT_PLAIN := preload("res://assets/pack_v2/path_base.png")
 const PATH_TILES := preload("res://assets/pack_v2/tiles_path.png")
-const DIRT_PEBBLES := preload("res://assets/sprites/dirt_pebbles.png")
 const FENCE_BACK := preload("res://assets/pack_v2/fence_v3_back.png")
 const FENCE_FRONT := preload("res://assets/pack_v2/fence_v3_front.png")
 const FENCE_FRONT_LAYER := preload("res://scripts/fence_front.gd")

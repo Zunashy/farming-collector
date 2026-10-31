@@ -2,7 +2,7 @@ class_name MarketMenu
 extends PanelContainer
 ## Menu d'achat et de revente : graines, employés, champs. Touche B ou bouton du HUD.
 
-const ICON_SEEDS := preload("res://assets/sprites/icon_seeds.png")
+const ICON_SEEDS := preload("res://assets/pack_v2/icon_seeds.png")
 ## Touches qui servent à saisir la quantité ; toute autre touche rend la main au jeu.
 const EDIT_KEYS: Array[Key] = [KEY_BACKSPACE, KEY_DELETE, KEY_LEFT, KEY_RIGHT, KEY_HOME, KEY_END, KEY_UP, KEY_DOWN]
 

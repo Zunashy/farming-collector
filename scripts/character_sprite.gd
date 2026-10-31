@@ -1,11 +1,10 @@
 class_name CharacterSprite
 extends Sprite2D
-## Personnage animé à partir d'une spritesheet 4x4 (cellules 16x32).
+## Personnage animé à partir d'une spritesheet 4x4 (cellules 32x48, pack v2).
 ## Lignes : bas, haut, gauche, droite. Colonnes : repos, pas gauche, transition, pas droit.
-## Les pieds sont posés sur l'origine du parent + 8 px, quelle que soit l'échelle.
+## Les pieds (bas de la cellule) sont posés sur l'origine du parent.
 
-## Agrandi pour que les personnages ne se perdent pas dans les champs. Avec le zoom x2 de la caméra,
-## x1.5 donne exactement 3 pixels d'écran par pixel de sprite : les pixels restent nets.
+## Dessiné à la taille du décor : pas d'agrandissement, même taille de pixel que les tuiles.
 const SPRITE_SCALE := 1.0
 const WALK_FRAMES: Array[int] = [1, 2, 3, 2]
 const WALK_FPS := 8.0
