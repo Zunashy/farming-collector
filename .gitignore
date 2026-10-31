@@ -1,3 +1,10 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Archives de livraison (doublons des dossiers décompressés)
+assets/*.zip
+# Manifestes de génération : contiennent des chemins vers le PC local
+assets/pack_v2/manifests/
+# Journaux temporaires
+*.log
