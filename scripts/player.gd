@@ -5,7 +5,7 @@ extends CharacterBody2D
 const SPEED := 100.0
 const ZOOM := 2.0
 const REACH := 26.0 ## distance du point visé devant le joueur
-const SHEET := preload("res://assets/sprites/player.png")
+const SHEET := preload("res://assets/pack_v2/player.png")
 
 var bounds := Vector2(896, 512) ## taille du monde (défini avant add_child) : limite du joueur et de la caméra
 var fields: Array[FarmField] = []
@@ -41,8 +41,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("use_tool"):
 		var target := _target_point()
 		for f in fields:
-			if f.owned:
-				f.use_auto(f.world_to_cell(target))
+			var cell := f.world_to_cell(target)
+			if not f.in_bounds(cell):
+				continue
+			if not f.owned:
+				GameState.notify("Champ a vendre : achete-le au marche [B]")
+			elif f.is_empty(cell) and GameState.seeds <= 0:
+				GameState.notify("Plus de graines : achete-en au marche [B]")
+			else:
+				f.use_auto(cell)
 
 
 func _physics_process(_delta: float) -> void:

@@ -7,7 +7,8 @@ extends Station
 func _init() -> void:
 	title = "Boite"
 	body_color = Color(0.6, 0.4, 0.2)
-	texture = preload("res://assets/sprites/sell_box.png")
+	texture = preload("res://assets/pack_v2/sell_box.png")
+	body_size = Vector2(64, 32)
 
 
 func prompt() -> String:
@@ -15,4 +16,7 @@ func prompt() -> String:
 
 
 func interact() -> void:
+	if GameState.wheat <= 0:
+		GameState.notify("Rien a vendre : recolte du ble d'abord")
+		return
 	GameState.sell_all_wheat()

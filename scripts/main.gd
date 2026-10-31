@@ -1,6 +1,6 @@
 extends Node2D
 ## Monte la scène de ferme : carte, champs, boîte de vente, employés, joueur, HUD.
-## Contient aussi la capture / restauration de l'état pour la sauvegarde (pas encore utilisée par le jeu).
+## Contient aussi la capture / restauration de l'état pour la sauvegarde (menu Partie du HUD).
 
 const EMPLOYEE_NAMES: Array[String] = ["Lea", "Tom", "Mia", "Noe", "Zoe", "Max", "Eli", "Ana"]
 const EMPLOYEE_COLORS: Array[Color] = [
@@ -8,11 +8,16 @@ const EMPLOYEE_COLORS: Array[Color] = [
 	Color(0.9, 0.55, 0.65), Color(0.4, 0.8, 0.8), Color(0.85, 0.85, 0.45), Color(0.65, 0.65, 0.7),
 ]
 
+const BUTTERFLY_COUNT := 6
+
 var _fields: Array[FarmField] = []
 var _sell_box: SellBox
+var _player: Player
+var _entities: Node2D ## tout ce qui se tient debout (clôtures, objets, personnages), trié en profondeur
 
 
 func _ready() -> void:
+	add_child(DayNight.new())
 	add_child(WorldMap.new())
 
 	for i in WorldMap.FIELD_BLOCK_COLS.size():
@@ -22,18 +27,34 @@ func _ready() -> void:
 		_fields.append(field)
 	_update_fields()
 
+	_entities = Node2D.new()
+	_entities.y_sort_enabled = true
+	add_child(_entities)
+	WorldMap.add_fence_layers(_entities)
+	preload("res://scripts/pack_decor.gd").populate(_entities)
+
 	_sell_box = SellBox.new()
 	_sell_box.position = WorldMap.sell_box_position()
-	add_child(_sell_box)
+	_entities.add_child(_sell_box)
 
-	var player := Player.new()
-	player.position = _sell_box.position + Vector2(0, 64) # sur le sentier, sous la boîte de vente
-	player.bounds = WorldMap.SIZE
-	player.fields = _fields
-	player.stations = [_sell_box] as Array[Station]
-	add_child(player)
+	_player = Player.new()
+	_player.position = _sell_box.position + Vector2(0, 64) # sur le sentier, sous la boîte de vente
+	_player.bounds = WorldMap.SIZE
+	_player.fields = _fields
+	_player.stations = [_sell_box] as Array[Station]
+	_entities.add_child(_player)
 
-	add_child(Hud.new())
+	# Les papillons volent au-dessus de tout le reste.
+	for i in BUTTERFLY_COUNT:
+		var butterfly := Butterfly.new()
+		butterfly.bounds = WorldMap.SIZE
+		butterfly.seed_value = i
+		add_child(butterfly)
+
+	var hud := Hud.new()
+	add_child(hud)
+	hud.save_menu.save_requested.connect(_on_save_requested)
+	hud.save_menu.load_requested.connect(_on_load_requested)
 
 	GameState.changed.connect(_update_fields)
 	GameState.employee_hired.connect(_spawn_employee)
@@ -52,6 +73,7 @@ func _spawn_employee(field_index: int, saved := {}) -> void:
 	employee.field_index = field_index
 	employee.all_fields = _fields
 	employee.sell_box = _sell_box
+	employee.player = _player
 	if saved.is_empty():
 		var index := _free_name_index()
 		employee.employee_name = EMPLOYEE_NAMES[index]
@@ -61,7 +83,7 @@ func _spawn_employee(field_index: int, saved := {}) -> void:
 		employee.position = WorldMap.gate_front(field_index) + Vector2((slot - 1) * 26, 0)
 	else:
 		employee.load_dict(saved)
-	add_child(employee)
+	_entities.add_child(employee)
 	GameState.register_employee(employee)
 
 
@@ -76,7 +98,21 @@ func _free_name_index() -> int:
 	return 0
 
 
-# --- Sauvegarde (3 emplacements, voir SaveGame). Rien ne l'appelle encore. ---
+# --- Sauvegarde (3 emplacements, voir SaveGame), appelée par le menu Partie du HUD. ---
+
+func _on_save_requested(slot: int) -> void:
+	if save_game(slot):
+		GameState.notify("Partie sauvegardee (emplacement %d)" % (slot + 1))
+	else:
+		GameState.notify("Echec de la sauvegarde (emplacement %d)" % (slot + 1))
+
+
+func _on_load_requested(slot: int) -> void:
+	if load_game(slot):
+		GameState.notify("Partie chargee (emplacement %d)" % (slot + 1))
+	else:
+		GameState.notify("Emplacement %d vide ou illisible" % (slot + 1))
+
 
 func capture_state() -> Dictionary:
 	var fields: Array = []
@@ -85,7 +121,11 @@ func capture_state() -> Dictionary:
 	var employees: Array = []
 	for e in GameState.employees:
 		employees.append(e.to_dict())
-	return {"game": GameState.to_dict(), "fields": fields, "employees": employees}
+	var player := {
+		"pos": [_player.global_position.x, _player.global_position.y],
+		"facing": [_player.facing.x, _player.facing.y],
+	}
+	return {"game": GameState.to_dict(), "fields": fields, "employees": employees, "player": player}
 
 
 func restore_state(state: Dictionary) -> void:
@@ -97,6 +137,13 @@ func restore_state(state: Dictionary) -> void:
 	_update_fields()
 	for saved in state.get("employees", []):
 		_spawn_employee(int(saved.get("field_index", 0)), saved)
+	var player: Dictionary = state.get("player", {})
+	var pos: Array = player.get("pos", [])
+	if pos.size() == 2:
+		_player.global_position = Vector2(float(pos[0]), float(pos[1]))
+	var facing: Array = player.get("facing", [])
+	if facing.size() == 2:
+		_player.facing = Vector2(float(facing[0]), float(facing[1]))
 
 
 func save_game(slot: int) -> bool:

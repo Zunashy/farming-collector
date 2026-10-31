@@ -6,7 +6,7 @@ extends Sprite2D
 
 ## Agrandi pour que les personnages ne se perdent pas dans les champs. Avec le zoom x2 de la caméra,
 ## x1.5 donne exactement 3 pixels d'écran par pixel de sprite : les pixels restent nets.
-const SPRITE_SCALE := 1.5
+const SPRITE_SCALE := 1.0
 const WALK_FRAMES: Array[int] = [1, 2, 3, 2]
 const WALK_FPS := 8.0
 
@@ -19,9 +19,9 @@ func _init(sheet: Texture2D = null) -> void:
 	texture = sheet
 	hframes = 4
 	vframes = 4
-	offset = Vector2(0, -8)
+	offset = Vector2(0, -24)
 	scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
-	position = Vector2(0, 8.0 - 8.0 * SPRITE_SCALE)
+	position = Vector2.ZERO
 
 
 ## Oriente le personnage vers dir (l'axe dominant l'emporte).

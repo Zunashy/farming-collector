@@ -13,20 +13,21 @@ const GROW_TIME := 6.0 ## secondes entre deux stades une fois arrosé
 const NO_PLANT := -1
 const NO_CELL := Vector2i(-1, -1)
 
-const SOIL_DRY := preload("res://assets/sprites/soil_dry.png")
-const SOIL_WET := preload("res://assets/sprites/soil_wet.png")
-const FOR_SALE := preload("res://assets/sprites/field_for_sale.png")
+const SOIL_DRY := preload("res://assets/pack_v2/soil_dry_base.png")
+const FIELD_EARTH := preload("res://assets/pack_v2/path_base.png")
+const SOIL_WET := preload("res://assets/pack_v2/soil_wet_base.png")
+const FOR_SALE := preload("res://assets/pack_v2/sign_for_sale.png")
 ## Icône de l'action affichée sur la case visée, indexée par GameState.Tool.
 const ACTION_ICONS: Array[Texture2D] = [
-	preload("res://assets/sprites/icon_seeds.png"),
-	preload("res://assets/sprites/icon_can.png"),
-	preload("res://assets/sprites/icon_hand.png"),
+	preload("res://assets/pack_v2/icon_seeds.png"),
+	preload("res://assets/pack_v2/icon_can.png"),
+	preload("res://assets/pack_v2/icon_hand.png"),
 ]
 const WHEAT: Array[Texture2D] = [
-	preload("res://assets/sprites/wheat_0.png"),
-	preload("res://assets/sprites/wheat_1.png"),
-	preload("res://assets/sprites/wheat_2.png"),
-	preload("res://assets/sprites/wheat_3.png"),
+	preload("res://assets/pack_v2/wheat_0.png"),
+	preload("res://assets/pack_v2/wheat_1.png"),
+	preload("res://assets/pack_v2/wheat_2.png"),
+	preload("res://assets/pack_v2/wheat_3.png"),
 ]
 
 ## Un champ non acheté affiche le panneau « à vendre » et reste inactif.
@@ -94,6 +95,10 @@ func in_bounds(cell: Vector2i) -> bool:
 
 func cell_center(cell: Vector2i) -> Vector2:
 	return to_global(Vector2((cell.x + 0.5) * TILE, (cell.y + 0.5) * TILE))
+
+
+func is_empty(cell: Vector2i) -> bool:
+	return _stage[cell.y * COLS + cell.x] == NO_PLANT
 
 
 ## Vrai si l'outil aurait un effet sur cette case.
@@ -182,8 +187,12 @@ func use_tool(cell: Vector2i, tool_id: GameState.Tool) -> void:
 
 
 func _draw() -> void:
+	# Le fond s'étend sous les poteaux : aucune bande d'herbe entre sol et bois.
+	if owned:
+		draw_texture_rect(FIELD_EARTH, Rect2(-14, -14, COLS * TILE + 28, ROWS * TILE + 28), true)
 	if not owned:
-		draw_texture(FOR_SALE, Vector2.ZERO)
+		# Ne conserver que le panneau : herbe et clôture sont déjà dessinées par la carte.
+		draw_texture(FOR_SALE, Vector2(44, 48))
 		return
 	for y in ROWS:
 		for x in COLS:
@@ -194,7 +203,8 @@ func _draw() -> void:
 				draw_texture(WHEAT[_stage[i]], pos)
 	if in_bounds(highlight_cell):
 		var hr := Rect2(highlight_cell.x * TILE, highlight_cell.y * TILE, TILE, TILE)
-		draw_rect(hr, Color(1, 1, 1, 0.9), false, 2.0)
+		draw_rect(hr.grow(-1), Color(1.0, 0.89, 0.57, 0.12))
+		draw_rect(hr.grow(-2), Color(1.0, 0.89, 0.57, 0.8), false, 1.0)
 		var action := auto_tool(highlight_cell)
 		if action != -1:
 			draw_texture(ACTION_ICONS[action], hr.position + Vector2(TILE - 18, 2))

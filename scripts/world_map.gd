@@ -15,18 +15,23 @@ const GATE_OFFSET := 2 ## colonne de la porte, en partant de la gauche de l'encl
 const ROAD_ROW := 9
 const SELL_TILE := Vector2i(3, 6)
 
-const GRASS := preload("res://assets/sprites/grass.png")
+const GRASS := preload("res://assets/pack_v2/tiles_grass.png")
 const FLOWERS_WHITE := preload("res://assets/sprites/flowers_white.png")
 const FLOWERS_MIXED := preload("res://assets/sprites/flowers_mixed.png")
-const DIRT_PLAIN := preload("res://assets/sprites/dirt_plain.png")
+const DIRT_PLAIN := preload("res://assets/pack_v2/path_base.png")
+const PATH_TILES := preload("res://assets/pack_v2/tiles_path.png")
 const DIRT_PEBBLES := preload("res://assets/sprites/dirt_pebbles.png")
-const FENCE_H := preload("res://assets/sprites/fence_horizontal.png")
-const FENCE_V := preload("res://assets/sprites/fence_vertical.png")
-const FENCE_NW := preload("res://assets/sprites/fence_corner_nw.png")
-const FENCE_NE := preload("res://assets/sprites/fence_corner_ne.png")
-const FENCE_SW := preload("res://assets/sprites/fence_corner_sw.png")
-const FENCE_SE := preload("res://assets/sprites/fence_corner_se.png")
-const FENCE_GATE := preload("res://assets/sprites/fence_gate.png")
+const FENCE_BACK := preload("res://assets/pack_v2/fence_v3_back.png")
+const FENCE_FRONT := preload("res://assets/pack_v2/fence_v3_front.png")
+const FENCE_FRONT_LAYER := preload("res://scripts/fence_front.gd")
+const FENCE_BACK_BASE := 40 ## bas de la traverse du haut, dans fence_enclosure_back.png
+const FENCE_FRONT_BASE := 176 ## bas de la traverse du bas, dans fence_enclosure_front.png
+## Emprise au sol de la clôture dans l'enclos (192 x 192), là où se trouvent les pieds des poteaux.
+const FENCE_LEFT := 9
+const FENCE_RIGHT := 184
+const FENCE_SIDE := 18 ## épaisseur des côtés
+const FENCE_DEPTH := 12 ## profondeur des traverses haut et bas, au-dessus de leur base
+const GATE_GAP := 24 ## largeur du passage laissé libre devant la porte
 
 
 ## Coin haut gauche des 4x4 cases du champ.
@@ -40,6 +45,57 @@ static func gate_front(index: int) -> Vector2:
 	return Vector2(col * TILE + TILE / 2.0, (BLOCK_ROW + BLOCK_SIZE + 1) * TILE + TILE / 2.0)
 
 
+## Point dans le champ, juste derrière la porte (rangée du bas).
+static func gate_inside(index: int) -> Vector2:
+	return Vector2(gate_front(index).x, (BLOCK_ROW + BLOCK_SIZE - 2) * TILE + TILE / 2.0)
+
+
+## Index de l'enclos dont l'intérieur (dans la clôture) contient pos, ou -1.
+static func enclosure_at(pos: Vector2) -> int:
+	for i in FIELD_BLOCK_COLS.size():
+		var origin := Vector2(FIELD_BLOCK_COLS[i] * TILE, BLOCK_ROW * TILE)
+		var inner := Rect2(origin + Vector2(FENCE_LEFT + FENCE_SIDE, FENCE_BACK_BASE),
+				Vector2(FENCE_RIGHT - FENCE_LEFT - 2 * FENCE_SIDE, FENCE_FRONT_BASE - FENCE_DEPTH - FENCE_BACK_BASE))
+		if inner.has_point(pos):
+			return i
+	return -1
+
+
+## Index de l'enclos dont l'emprise (clôture comprise, ou l'allée de la porte jusqu'au chemin) contient pos, ou -1.
+static func _enclosure_footprint_at(pos: Vector2) -> int:
+	for i in FIELD_BLOCK_COLS.size():
+		var origin := Vector2(FIELD_BLOCK_COLS[i] * TILE, BLOCK_ROW * TILE)
+		if Rect2(origin, Vector2(BLOCK_SIZE * TILE, FENCE_FRONT_BASE + 4)).has_point(pos):
+			return i
+		var front := gate_front(i)
+		if absf(pos.x - front.x) <= 1.0 and pos.y > origin.y and pos.y < front.y - 1.0:
+			return i
+	return -1
+
+
+## Prochain point vers lequel marcher pour aller de from à to sans traverser de clôture :
+## on entre et on sort des enclos par la porte, et on rejoint une porte par le chemin du bas.
+static func next_waypoint(from: Vector2, to: Vector2) -> Vector2:
+	var a := enclosure_at(from)
+	var b := enclosure_at(to)
+	if a != -1 and a == b:
+		return to
+	if a != -1: # sortir : aller jusqu'à la porte, puis descendre droit dessous
+		var inside := gate_inside(a)
+		return inside if absf(from.x - inside.x) > 1.0 else gate_front(a)
+	var passage := _enclosure_footprint_at(from)
+	if passage != -1: # dans l'ouverture de la porte : la franchir tout droit
+		return gate_inside(passage) if passage == b else gate_front(passage)
+	if b != -1 and b != a:
+		var front := gate_front(b)
+		if absf(from.x - front.x) <= 1.0 and from.y <= front.y + 1.0:
+			return gate_inside(b)
+		if from.y < front.y - 1.0: # d'abord descendre jusqu'au chemin, sous les enclos
+			return Vector2(from.x, front.y)
+		return front
+	return to
+
+
 static func sell_box_position() -> Vector2:
 	return Vector2(SELL_TILE) * TILE + Vector2(TILE, TILE) / 2.0
 
@@ -49,16 +105,68 @@ func _draw() -> void:
 	for y in ROWS:
 		for x in COLS:
 			var pos := Vector2(x, y) * TILE
-			var n := _noise(x, y)
-			if dirt.has(Vector2i(x, y)):
-				draw_texture(DIRT_PEBBLES if n < 25 else DIRT_PLAIN, pos)
-			elif n < 8:
-				draw_texture(FLOWERS_WHITE, pos)
-			elif n < 14:
-				draw_texture(FLOWERS_MIXED, pos)
-			else:
-				draw_texture(GRASS, pos)
-	_draw_fences()
+			draw_texture_rect_region(GRASS, Rect2(pos, Vector2(TILE, TILE)), Rect2((_noise(x, y) % 4) * TILE, 0, TILE, TILE))
+			# Les couleurs du pack sont affichées directement, sans voile gris-vert.
+	_draw_meadow_details(dirt)
+	# Même terre sur tout le réseau, avec des coins arrondis aux bords libres.
+	for cell: Vector2i in dirt:
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.65, 0.46, 0.27)
+		var north := dirt.has(cell + Vector2i.UP)
+		var south := dirt.has(cell + Vector2i.DOWN)
+		var west := dirt.has(cell + Vector2i.LEFT)
+		var east := dirt.has(cell + Vector2i.RIGHT)
+		style.corner_radius_top_left = 8 if not north and not west else 0
+		style.corner_radius_top_right = 8 if not north and not east else 0
+		style.corner_radius_bottom_left = 8 if not south and not west else 0
+		style.corner_radius_bottom_right = 8 if not south and not east else 0
+		var rect := Rect2(Vector2(cell) * TILE, Vector2(TILE, TILE))
+		var mask := (1 if north else 0) + (2 if east else 0) + (4 if south else 0) + (8 if west else 0)
+		var source := Vector2i(mask % 4, mask / 4) * TILE
+		if mask == 15:
+			source = Vector2i(_noise(cell.x, cell.y) % 4, 4) * TILE
+		draw_texture_rect_region(PATH_TILES, rect, Rect2(Vector2(source), Vector2(TILE, TILE)))
+		# Des grains distribués jusque sur les raccords, sans carré de texture en retrait.
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(cell.x) * 73856093 + int(cell.y) * 19349663
+		for i in 65:
+			var p := Vector2(rng.randi_range(0, 31), rng.randi_range(0, 31))
+			# Respecter les coins arrondis de la silhouette du chemin.
+			var corner := Vector2(8 if p.x < 16 else 24, 8 if p.y < 16 else 24)
+			var radius := style.corner_radius_top_left if p.x < 16 else style.corner_radius_top_right
+			if p.y >= 16:
+				radius = style.corner_radius_bottom_left if p.x < 16 else style.corner_radius_bottom_right
+			if radius > 0 and absf(p.x - corner.x) > 0 and absf(p.y - corner.y) > 0:
+				var in_corner := (p.x < 8 or p.x > 24) and (p.y < 8 or p.y > 24)
+				if in_corner and p.distance_to(corner) > 7:
+					continue
+			var color := Color(0.81, 0.63, 0.40, 0.35) if i % 3 != 0 else Color(0.39, 0.28, 0.18, 0.24)
+			draw_rect(Rect2(rect.position + p, Vector2(2 if i % 7 == 0 else 1, 1)), color)
+			if i % 23 == 0:
+				draw_rect(Rect2(rect.position + p, Vector2(2, 2)), Color(0.72, 0.64, 0.48, 0.55))
+
+
+## Petites touches dans une distribution continue, indépendante de la grille des tuiles.
+func _draw_meadow_details(dirt: Dictionary) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 41027
+	for i in 2800:
+		var p := Vector2(rng.randi_range(2, int(SIZE.x) - 4), rng.randi_range(4, int(SIZE.y) - 4))
+		var cell := Vector2i(floori(p.x / TILE), floori(p.y / TILE))
+		if dirt.has(cell):
+			continue
+		# Les bouquets se regroupent en zones, plutôt qu'en cases de couleurs.
+		var patch := sin(p.x * 0.037 + sin(p.y * 0.023) * 2.0) * cos(p.y * 0.031)
+		var shade := Color(0.32, 0.44, 0.18, 0.42) if patch > 0 else Color(0.66, 0.68, 0.31, 0.40)
+		draw_rect(Rect2(p, Vector2(2, 1)), shade)
+		if i % 7 == 0 and patch > 0.1:
+			draw_line(p, p + Vector2(-1, -3), Color(0.29, 0.43, 0.16, 0.7))
+			draw_line(p + Vector2(1, 0), p + Vector2(2, -4), Color(0.57, 0.65, 0.26, 0.8))
+		if i % 29 == 0 and patch > 0.15:
+			var petal := Color(0.94, 0.88, 0.66) if i % 2 == 0 else Color(0.87, 0.67, 0.38)
+			draw_rect(Rect2(p + Vector2(-1, -2), Vector2(3, 1)), petal)
+			draw_rect(Rect2(p + Vector2(0, -3), Vector2(1, 3)), petal)
+			draw_rect(Rect2(p + Vector2(0, -2), Vector2.ONE), Color(0.85, 0.65, 0.22))
 
 
 ## Cases de chemin : la route, le sentier de la boîte de vente et un passage sous chaque porte.
@@ -76,36 +184,55 @@ func _dirt_tiles() -> Dictionary:
 	return tiles
 
 
-## Les sprites de clôture ne sont pas centrés au même endroit dans leur tuile 32x32 (mesuré) :
-##   rails horizontaux y 12-21 (centre 16,5)   trait vertical x 14-17 (centre 15,5)
-##   angles du haut : rails y 6-13 (centre 9,5)   angles du bas : rails y 18-25 (centre 21,5)
-##   angles de gauche : poteau x 6-11 (centre 8,5)   angles de droite : poteau x 20-25 (centre 22,5)
-## Chaque pièce est donc décalée pour que rails et poteaux se rejoignent, puis toute la clôture est
-## rapprochée du champ de FENCE_INSET pixels (sinon 22 px d'herbe la sépareraient du champ).
-const FENCE_INSET := 10.0
-
-
-func _draw_fences() -> void:
-	var d := FENCE_INSET
-	var top := Vector2(0, d - 7.0)
-	var bottom := Vector2(0, 5.0 - d)
-	var left := Vector2(d - 7.0, 0)
-	var right := Vector2(7.0 - d, 0)
-	var last := BLOCK_SIZE - 1
+## Deux couches parfaitement alignées, ajoutées après le sol et les cultures.
+## parent trie ses enfants en profondeur : chaque couche est rangée à la base de sa traverse
+## (FENCE_BACK_BASE, FENCE_FRONT_BASE), pour que les personnages passent devant ou derrière.
+static func add_fence_layers(parent: Node2D) -> void:
 	for c0 in FIELD_BLOCK_COLS:
-		for i in range(1, last):
-			_draw_tile(FENCE_H, c0 + i, BLOCK_ROW, top)
-			_draw_tile(FENCE_GATE if i == GATE_OFFSET else FENCE_H, c0 + i, BLOCK_ROW + last, bottom)
-			_draw_tile(FENCE_V, c0, BLOCK_ROW + i, left)
-			_draw_tile(FENCE_V, c0 + last, BLOCK_ROW + i, right)
-		_draw_tile(FENCE_NW, c0, BLOCK_ROW, Vector2(d, d))
-		_draw_tile(FENCE_NE, c0 + last, BLOCK_ROW, Vector2(-d, d))
-		_draw_tile(FENCE_SW, c0, BLOCK_ROW + last, Vector2(d, -d))
-		_draw_tile(FENCE_SE, c0 + last, BLOCK_ROW + last, Vector2(-d, -d))
+		var origin := Vector2(c0 * TILE, BLOCK_ROW * TILE)
+		var sprite := Sprite2D.new()
+		sprite.texture = FENCE_BACK
+		sprite.centered = false
+		sprite.position = Vector2(0, -FENCE_BACK_BASE)
+		parent.add_child(_sort_anchor(origin + Vector2(0, FENCE_BACK_BASE), sprite))
+		var front := Node2D.new()
+		front.set_script(FENCE_FRONT_LAYER)
+		front.position = Vector2(0, -FENCE_FRONT_BASE)
+		parent.add_child(_sort_anchor(origin + Vector2(0, FENCE_FRONT_BASE), front))
+		parent.add_child(_fence_body(origin))
 
 
-func _draw_tile(texture: Texture2D, x: int, y: int, shift := Vector2.ZERO) -> void:
-	draw_texture(texture, Vector2(x, y) * TILE + shift)
+## Corps physique de la clôture d'un enclos : trois côtés pleins et le bas ouvert devant la porte.
+static func _fence_body(origin: Vector2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.position = origin
+	var top := FENCE_BACK_BASE - FENCE_DEPTH
+	var bottom := FENCE_FRONT_BASE - FENCE_DEPTH
+	var gap_left := GATE_OFFSET * TILE + (TILE - GATE_GAP) / 2.0
+	var gap_right := gap_left + GATE_GAP
+	var rects: Array[Rect2] = [
+		Rect2(FENCE_LEFT, top, FENCE_RIGHT - FENCE_LEFT, FENCE_DEPTH), # haut
+		Rect2(FENCE_LEFT, top, FENCE_SIDE, FENCE_FRONT_BASE - top), # gauche
+		Rect2(FENCE_RIGHT - FENCE_SIDE, top, FENCE_SIDE, FENCE_FRONT_BASE - top), # droite
+		Rect2(FENCE_LEFT, bottom, gap_left - FENCE_LEFT, FENCE_DEPTH), # bas, à gauche de la porte
+		Rect2(gap_right, bottom, FENCE_RIGHT - gap_right, FENCE_DEPTH), # bas, à droite
+	]
+	for r in rects:
+		var shape := RectangleShape2D.new()
+		shape.size = r.size
+		var collision := CollisionShape2D.new()
+		collision.shape = shape
+		collision.position = r.get_center()
+		body.add_child(collision)
+	return body
+
+
+## Noeud placé au point de tri, qui porte layer décalé d'autant vers le haut.
+static func _sort_anchor(sort_point: Vector2, layer: Node2D) -> Node2D:
+	var anchor := Node2D.new()
+	anchor.position = sort_point
+	anchor.add_child(layer)
+	return anchor
 
 
 ## Pseudo-hasard 0-99 fixe par case : la carte est identique à chaque lancement.

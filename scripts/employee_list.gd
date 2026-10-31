@@ -65,8 +65,12 @@ func _rebuild() -> void:
 		var menu := EmployeeMenu.new()
 		menu.setup(employee)
 		menu.task_chosen.connect(close)
-		menu.name = "Menu"
-		section.add_child(menu)
+		# Dans un panneau : le texte du menu reste lisible par-dessus le jeu.
+		var panel := PanelContainer.new()
+		panel.name = "Menu"
+		panel.visible = false
+		panel.add_child(menu)
+		section.add_child(panel)
 		add_child(section)
 		_headers[employee] = header
 		_sections[employee] = section
@@ -86,7 +90,7 @@ func _toggle(employee: Employee) -> void:
 
 func _update() -> void:
 	for e in _sections:
-		(_sections[e] as Control).get_node("Menu").visible = (e == _open)
+		UiAnim.set_shown((_sections[e] as Control).get_node("Menu"), e == _open)
 	_update_headers()
 
 

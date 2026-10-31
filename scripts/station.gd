@@ -11,6 +11,18 @@ var texture: Texture2D ## si défini, remplace le rectangle coloré
 var near := false
 
 
+func _ready() -> void:
+	# Corps physique sur la moitié basse de l'objet (sa base au sol) : le joueur le contourne.
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(body_size.x - 4, body_size.y / 2.0)
+	var collision := CollisionShape2D.new()
+	collision.shape = shape
+	collision.position = Vector2(0, body_size.y / 4.0)
+	var body := StaticBody2D.new()
+	body.add_child(collision)
+	add_child(body)
+
+
 func is_near(world_pos: Vector2) -> bool:
 	return global_position.distance_to(world_pos) <= INTERACT_RANGE
 

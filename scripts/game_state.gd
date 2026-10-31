@@ -5,6 +5,7 @@ signal changed
 signal employees_changed
 signal employee_hired(field_index: int) ## Main crée l'employé puis l'enregistre (register_employee)
 signal employee_menu_requested(employee: Node)
+signal notified(text: String) ## message court affiché par le HUD (résultat d'une action, raison d'un échec)
 
 enum Tool { SEEDS, WATERING_CAN, HAND }
 
@@ -50,6 +51,10 @@ func clear_employees() -> void:
 	employees_changed.emit()
 
 
+func notify(text: String) -> void:
+	notified.emit(text)
+
+
 func add_seeds(amount: int) -> void:
 	seeds += amount
 	changed.emit()
@@ -60,11 +65,18 @@ func add_wheat(amount: int) -> void:
 	changed.emit()
 
 
-func buy_seed() -> bool:
-	if money < SEED_PRICE:
+## Nombre de graines que l'argent actuel permet d'acheter.
+func max_affordable_seeds() -> int:
+	return floori(money / float(SEED_PRICE))
+
+
+## Achète count graines d'un coup, seulement si le budget le permet en entier.
+func buy_seeds(count: int) -> bool:
+	if count <= 0 or count > max_affordable_seeds():
 		return false
-	money -= SEED_PRICE
-	seeds += 1
+	money -= count * SEED_PRICE
+	seeds += count
+	notify("%d graine%s achetee%s : -%d$" % [count, "s" if count > 1 else "", "s" if count > 1 else "", count * SEED_PRICE])
 	changed.emit()
 	return true
 
@@ -142,6 +154,8 @@ func buy_field() -> bool:
 ## Vend tout le blé porté. Renvoie le montant gagné.
 func sell_all_wheat() -> int:
 	var gain := wheat * WHEAT_PRICE
+	if gain > 0:
+		notify("%d ble vendu : +%d$" % [wheat, gain])
 	wheat = 0
 	money += gain
 	changed.emit()

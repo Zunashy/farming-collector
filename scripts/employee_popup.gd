@@ -13,24 +13,33 @@ func _ready() -> void:
 
 
 func open_for(employee: Employee) -> void:
-	close()
+	_deselect()
+	_clear()
 	_employee = employee
 	employee.selected = true
 	var menu := EmployeeMenu.new()
 	menu.setup(employee)
 	menu.task_chosen.connect(close)
 	add_child(menu)
-	visible = true
 	reset_size()
 	_follow()
+	UiAnim.appear(self)
 	opened.emit()
 
 
+## Ferme le menu ; son contenu est retiré une fois l'animation de fermeture finie.
 func close() -> void:
+	_deselect()
+	UiAnim.disappear(self, _clear)
+
+
+func _deselect() -> void:
 	if is_instance_valid(_employee):
 		_employee.selected = false
 	_employee = null
-	visible = false
+
+
+func _clear() -> void:
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -38,12 +47,12 @@ func close() -> void:
 
 func _input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
-	if visible and click and click.pressed and not get_global_rect().has_point(click.position):
+	if UiAnim.is_shown(self) and click and click.pressed and not get_global_rect().has_point(click.position):
 		close()
 
 
 func _process(_delta: float) -> void:
-	if not visible:
+	if not UiAnim.is_shown(self):
 		return
 	if not is_instance_valid(_employee) or not GameState.employees.has(_employee):
 		close()

@@ -11,17 +11,19 @@ const TASK_NAMES: Array[String] = ["Repos", "Planter", "Arroser", "Recolter", "V
 const WORKING_STATUS: Array[String] = ["Repos", "Plante...", "Arrose...", "Recolte...", "Vend..."]
 ## Icône de chaque tâche, dans l'ordre de Task.
 const TASK_ICONS: Array[Texture2D] = [
-	preload("res://assets/sprites/task_rest.png"),
-	preload("res://assets/sprites/task_plant.png"),
-	preload("res://assets/sprites/task_water.png"),
-	preload("res://assets/sprites/task_harvest.png"),
-	preload("res://assets/sprites/task_sell.png"),
+	preload("res://assets/pack_v2/task_rest.png"),
+	preload("res://assets/pack_v2/task_plant.png"),
+	preload("res://assets/pack_v2/task_water.png"),
+	preload("res://assets/pack_v2/task_harvest.png"),
+	preload("res://assets/pack_v2/task_sell.png"),
 ]
 const SPEED := 60.0
 const WORK_TIME := 0.7 ## secondes passées sur une case
 const ARRIVE_DIST := 3.0
 const HIT_RECT := Rect2(-12, -40, 24, 50) ## zone de clic droit (le sprite est agrandi, voir CharacterSprite)
-const SHEET := preload("res://assets/sprites/employee.png")
+const BODY_RADIUS := 6.0 ## corps physique : le joueur ne traverse pas les employés
+const GIVE_WAY_DIST := 18.0 ## l'employé s'arrête plutôt que d'avancer à moins de cette distance du joueur
+const SHEET := preload("res://assets/pack_v2/employee.png")
 
 var employee_name := ""
 var color := Color(0.4, 0.6, 0.9)
@@ -29,6 +31,7 @@ var field_index := 0 ## champ de rattachement : sert à la place occupée (3 par
 var work_field := -1 ## -1 : tous les champs achetés ; sinon l'index du seul champ où il travaille
 var all_fields: Array[FarmField] = []
 var sell_box: Station ## où l'employé porte le blé pour la tâche "Vendre"
+var player: Node2D ## l'employé attend quand le joueur lui barre le passage
 var task: Task = Task.IDLE
 var status := "Repos"
 var waiting := false ## vrai quand la tâche est choisie mais qu'il n'y a rien à faire (grisé dans les menus)
@@ -47,6 +50,14 @@ func _ready() -> void:
 	_sprite = CharacterSprite.new(SHEET)
 	_sprite.modulate = Color.WHITE.lerp(color, 0.45) # la feuille est neutre : teinte légère par employé
 	add_child(_sprite)
+	var circle := CircleShape2D.new()
+	circle.radius = BODY_RADIUS
+	var collision := CollisionShape2D.new()
+	collision.shape = circle
+	var body := AnimatableBody2D.new()
+	body.sync_to_physics = false # déplacé par le script, pas par la physique
+	body.add_child(collision)
+	add_child(body)
 
 
 func set_task(value: Task) -> void:
@@ -99,7 +110,8 @@ func load_dict(data: Dictionary) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
 	if click and click.pressed and click.button_index == MOUSE_BUTTON_RIGHT:
-		if HIT_RECT.has_point(to_local(get_global_mouse_position())):
+		# Position du clic lui-même (pas celle du curseur au moment du traitement).
+		if HIT_RECT.has_point((make_input_local(click) as InputEventMouseButton).position):
 			get_viewport().set_input_as_handled()
 			GameState.employee_menu_requested.emit(self)
 
@@ -121,11 +133,7 @@ func _process(delta: float) -> void:
 		_drop_job() # la case a changé entre-temps (récoltée par le joueur, graines épuisées...)
 		return
 	status = WORKING_STATUS[task]
-	var target := _job_field.cell_center(_cell)
-	if global_position.distance_to(target) > ARRIVE_DIST:
-		_sprite.set_facing(target - global_position)
-		_sprite.set_moving(true)
-		global_position = global_position.move_toward(target, SPEED * delta)
+	if not _walk_to(_job_field.cell_center(_cell), delta):
 		return
 	_work += delta
 	if _work >= WORK_TIME:
@@ -141,16 +149,29 @@ func _process_sell(delta: float) -> void:
 		status = "Rien a vendre"
 		return
 	status = WORKING_STATUS[task]
-	var target := sell_box.global_position + Vector2(0, 26)
-	if global_position.distance_to(target) > ARRIVE_DIST:
-		_sprite.set_facing(target - global_position)
-		_sprite.set_moving(true)
-		global_position = global_position.move_toward(target, SPEED * delta)
+	if not _walk_to(sell_box.global_position + Vector2(0, 26), delta):
 		return
 	_work += delta
 	if _work >= WORK_TIME:
 		_work = 0.0
 		GameState.sell_all_wheat()
+
+
+## Avance vers target en passant par les portes des enclos. Vrai une fois arrivé.
+func _walk_to(target: Vector2, delta: float) -> bool:
+	if global_position.distance_to(target) <= ARRIVE_DIST:
+		return true
+	var step := WorldMap.next_waypoint(global_position, target)
+	_sprite.set_facing(step - global_position)
+	var next := global_position.move_toward(step, SPEED * delta)
+	# Le joueur est sur le chemin : attendre qu'il s'écarte plutôt que de le pousser.
+	if is_instance_valid(player):
+		var d := next.distance_to(player.global_position)
+		if d < GIVE_WAY_DIST and d < global_position.distance_to(player.global_position):
+			return false
+	_sprite.set_moving(true)
+	global_position = next
+	return false
 
 
 func _tool() -> GameState.Tool:

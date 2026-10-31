@@ -3,8 +3,13 @@ extends PanelContainer
 ## Menu d'achat et de revente : graines, employés, champs. Touche B ou bouton du HUD.
 
 const ICON_SEEDS := preload("res://assets/sprites/icon_seeds.png")
+## Touches qui servent à saisir la quantité ; toute autre touche rend la main au jeu.
+const EDIT_KEYS: Array[Key] = [KEY_BACKSPACE, KEY_DELETE, KEY_LEFT, KEY_RIGHT, KEY_HOME, KEY_END, KEY_UP, KEY_DOWN]
 
+var _seed_count: SpinBox
+var _seed_total: Label
 var _seed_buy: Button
+var _seed_buy_max: Button
 var _employee_buy: Button
 var _field_buy: Button
 var _seed_sell: Button
@@ -22,8 +27,7 @@ func _ready() -> void:
 	add_child(box)
 	box.add_child(_make_label("MARCHE", 20))
 	box.add_child(_make_label("Achat", 15))
-	_seed_buy = _make_button(box, GameState.buy_seed)
-	_seed_buy.icon = ICON_SEEDS
+	_build_seed_purchase(box)
 	_employee_buy = _make_button(box, GameState.buy_employee)
 	_field_buy = _make_button(box, GameState.buy_field)
 	box.add_child(_make_label("Revente", 15))
@@ -38,10 +42,58 @@ func _ready() -> void:
 	_refresh()
 
 
+## Graines : quantité, prix total, « Acheter » et « Acheter le maximum ».
+func _build_seed_purchase(box: VBoxContainer) -> void:
+	var title := _make_label("Graines de ble (%d$ piece)" % GameState.SEED_PRICE, 13)
+	box.add_child(title)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	_seed_count = SpinBox.new()
+	_seed_count.min_value = 1
+	_seed_count.value = 1
+	_seed_count.select_all_on_focus = true
+	_seed_count.value_changed.connect(_on_seed_count_changed)
+	# Entrée valide la saisie et rend la main au jeu (sinon E et Espace s'écriraient dans la case).
+	_seed_count.get_line_edit().text_submitted.connect(func(_t: String) -> void: _seed_count.get_line_edit().release_focus())
+	row.add_child(_seed_count)
+	_seed_total = _make_label("", 13)
+	_seed_total.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_seed_total)
+	_seed_buy = _make_button(row, func() -> void: GameState.buy_seeds(int(_seed_count.value)))
+	_seed_buy.icon = ICON_SEEDS
+	_seed_buy.text = "Acheter"
+	_seed_buy_max = _make_button(box, func() -> void: GameState.buy_seeds(GameState.max_affordable_seeds()))
+
+
+# Pendant la saisie de la quantité, E, Espace ou ZQSD valident la saisie et repartent vers le jeu.
+func _input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	var line := _seed_count.get_line_edit()
+	if not key or not key.pressed or not line.has_focus():
+		return
+	var is_digit := key.unicode >= KEY_0 and key.unicode <= KEY_9
+	if not is_digit and not EDIT_KEYS.has(key.keycode):
+		line.release_focus() # la SpinBox applique la valeur tapée en perdant le focus
+
+
+func _on_seed_count_changed(_value: float) -> void:
+	_refresh_seed_purchase()
+
+
+func _refresh_seed_purchase() -> void:
+	var affordable := GameState.max_affordable_seeds()
+	# La quantité ne peut pas dépasser le budget ; au moins 1 pour garder le champ lisible.
+	_seed_count.max_value = maxi(affordable, 1)
+	var count := int(_seed_count.value)
+	_seed_total.text = "Total : %d$" % (count * GameState.SEED_PRICE)
+	_seed_buy.disabled = count > affordable
+	_seed_buy_max.text = "Acheter le maximum (%d pour %d$)" % [affordable, affordable * GameState.SEED_PRICE]
+	_seed_buy_max.disabled = affordable <= 0
+
+
 func _refresh() -> void:
 	var money := GameState.money
-	_seed_buy.text = "Graine de ble (%d$)" % GameState.SEED_PRICE
-	_seed_buy.disabled = money < GameState.SEED_PRICE
+	_refresh_seed_purchase()
 
 	var hired := GameState.employees.size()
 	var text := "Employe (%d$)  [%d/%d]" % [GameState.EMPLOYEE_PRICE, hired, GameState.MAX_EMPLOYEES]
