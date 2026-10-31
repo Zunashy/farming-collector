@@ -7,6 +7,7 @@ extends Station
 func _init() -> void:
 	title = "Boite"
 	body_color = Color(0.6, 0.4, 0.2)
+	texture = preload("res://assets/sprites/sell_box.png")
 
 
 func prompt() -> String:

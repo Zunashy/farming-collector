@@ -7,6 +7,7 @@ const INTERACT_RANGE := 56.0
 var title := ""
 var body_size := Vector2(40, 32)
 var body_color := Color.GRAY
+var texture: Texture2D ## si défini, remplace le rectangle coloré
 var near := false
 
 
@@ -31,11 +32,13 @@ func interact() -> void:
 
 
 func _draw() -> void:
-	# --- SPRITE : à remplacer par un Sprite2D (voir SPRITES.md) ---
 	var rect := Rect2(-body_size / 2.0, body_size)
-	draw_rect(rect, body_color)
-	draw_rect(rect, Color.BLACK, false, 2.0)
+	if texture:
+		draw_texture(texture, rect.position)
+	else:
+		draw_rect(rect, body_color)
+		draw_rect(rect, Color.BLACK, false, 2.0)
 	var font := ThemeDB.fallback_font
-	draw_string(font, Vector2(-body_size.x / 2.0, -body_size.y / 2.0 - 4), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
-	if near:
-		draw_string(font, Vector2(-70, body_size.y / 2.0 + 16), prompt(), HORIZONTAL_ALIGNMENT_CENTER, 140, 12, Color.WHITE)
+	draw_string(font, Vector2(-body_size.x / 2.0, -body_size.y / 2.0 - 4), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 8)
+	if near: # texte réduit : le monde est affiché en zoom x2
+		draw_string(font, Vector2(-70, body_size.y / 2.0 + 12), prompt(), HORIZONTAL_ALIGNMENT_CENTER, 140, 8, Color.WHITE)
